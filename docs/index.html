@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PD scorecard demo · credit-default-risk</title>
+<meta name="description" content="Interactive probability-of-default calculator built on a WOE-binned logistic scorecard fitted to 183,668 Freddie Mac mortgages, validated out-of-time on the 2020-2021 cohort.">
+<style>
+:root{
+  --bg:#fbfbfa; --panel:#ffffff; --ink:#1c1c1a; --muted:#5f5e5a; --faint:#8a8880;
+  --line:#e4e2dc; --line-strong:#cfccc4;
+  --accent:#185fa5; --accent-soft:#e6f1fb;
+  --risk:#c2410c; --safe:#0f6e56;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#191918; --panel:#212120; --ink:#ececea; --muted:#a8a6a0; --faint:#807e78;
+    --line:#333331; --line-strong:#46443f;
+    --accent:#85b7eb; --accent-soft:#1d2b3a;
+    --risk:#f0997b; --safe:#5dcaa5;
+  }
+  .figure img{background:#fff;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 24px 72px}
+header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap}
+h1{font-size:22px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:14px;margin:0}
+.top .nav{display:flex;gap:14px;flex-wrap:wrap}
+.top a{color:var(--accent);text-decoration:none;font-size:13.5px;border-bottom:1px solid transparent;white-space:nowrap}
+.top a:hover{border-bottom-color:var(--accent)}
+.top a.here{color:var(--faint);border-bottom-color:var(--line-strong)}
+.lede{color:var(--muted);font-size:14px;max-width:74ch;margin:0 0 24px}
+.lede b{color:var(--ink);font-weight:600}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.calc{display:grid;grid-template-columns:300px minmax(0,1fr);overflow:hidden}
+.inputs{padding:20px;border-right:1px solid var(--line)}
+.inputs h2,.output h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;margin:0 0 16px}
+.field{margin-bottom:14px}
+.field label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--muted);margin-bottom:4px;gap:8px}
+.field .val{color:var(--ink);font-family:var(--mono);font-size:12.5px}
+input[type=range]{width:100%;accent-color:var(--accent);height:18px}
+select,input[type=number]{width:100%;padding:6px 8px;font-size:13px;font-family:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:6px}
+output{display:block}
+details{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+summary{cursor:pointer;font-size:13px;color:var(--accent);list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+ ";font-family:var(--mono)}
+details[open] summary::before{content:"− "}
+details .field{margin-top:12px;margin-bottom:0}
+.reset{margin-top:16px;width:100%;padding:7px;font-size:13px;font-family:inherit;color:var(--muted);background:transparent;border:1px solid var(--line-strong);border-radius:6px;cursor:pointer}
+.reset:hover{color:var(--ink);border-color:var(--faint)}
+.output{padding:20px 22px;min-width:0}
+.pdrow{display:flex;align-items:baseline;gap:12px;margin-bottom:2px}
+.pd{font-size:44px;font-weight:600;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.pd.high{color:var(--risk)}
+.pd.low{color:var(--safe)}
+.pdcap{font-size:13px;color:var(--faint)}
+.pdnote{font-size:13px;color:var(--muted);margin:0 0 16px}
+.band{display:inline-block;font-size:12px;padding:2px 9px;border-radius:20px;border:1px solid var(--line-strong);color:var(--muted);margin-bottom:18px}
+.band.pass{color:var(--safe);border-color:currentColor}
+.band.fail{color:var(--risk);border-color:currentColor}
+.pctline{font-size:13px;color:var(--muted);margin:0 0 14px}
+.pctline b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.gauge{position:relative;height:8px;border-radius:4px;background:var(--line);margin-bottom:4px}
+.gauge .fill{position:absolute;left:0;top:0;height:8px;border-radius:4px;background:var(--accent)}
+.gauge .cut{position:absolute;top:-5px;width:2px;height:18px;background:var(--ink);opacity:.55}
+.scale{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;margin-bottom:22px}
+.comp{margin-top:2px}
+.comp h3{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;margin:0 0 10px}
+.crow{display:grid;grid-template-columns:96px minmax(0,1fr) 62px;align-items:center;gap:10px;font-size:12.5px;margin-bottom:7px}
+.crow .name{font-family:var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.bar{position:relative;height:8px;background:var(--line);border-radius:3px}
+.bar span{position:absolute;top:0;height:8px;border-radius:3px}
+.crow .num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
+.pos{background:var(--risk)} .neg{background:var(--safe)}
+.cfoot{font-size:11.5px;color:var(--faint);margin-top:10px}
+section{margin-top:36px}
+section > h2{font-size:15px;font-weight:600;margin:0 0 6px}
+section > p{color:var(--muted);font-size:13.5px;margin:0 0 16px;max-width:78ch}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.metric .k{font-size:11.5px;color:var(--faint);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+.metric .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.metric .n{font-size:12px;color:var(--muted)}
+.cutoff{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+.cutrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:14px}
+.cutrow .k{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.cutrow .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+.tablewrap table{min-width:560px}
+th,td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--faint);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+tbody tr.hl td{background:var(--accent-soft)}
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.figure{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.figure img{width:100%;height:auto;display:block;border-radius:4px}
+.figure figcaption{font-size:12px;color:var(--muted);margin-top:8px}
+footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--faint);max-width:82ch}
+footer p{margin:0 0 8px}
+.err{background:#fcebeb;color:#791f1f;border:1px solid #f09595;border-radius:8px;padding:12px 14px;font-size:13px}
+@media (max-width:820px){
+  .calc{grid-template-columns:1fr}
+  .inputs{border-right:none;border-bottom:1px solid var(--line)}
+  .figs{grid-template-columns:1fr}
+  .pd{font-size:38px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>Probability-of-default scorecard</h1>
+    <p class="sub">331,122 Freddie Mac mortgages · 7 vintages (2015–2021) · out-of-time AUC 0.7462</p>
+  </div>
+  <nav class="nav">
+    <a class="here" href="index.html">English</a>
+    <a href="zh.html">中文</a>
+    <a href="https://github.com/prui0474/credit-default-risk">Source, method and data →</a>
+  </nav>
+</header>
+
+<p class="lede">Move the inputs and the scorecard re-scores the loan in the browser. Nothing is sent anywhere: the fitted weights are shipped as a 16 KB parameter file and the arithmetic happens locally. The model is a <b>logistic regression on weight-of-evidence bins</b>, fitted on the 2015–2018 cohort and never shown the 2020–2021 loans it is validated on.</p>
+
+<div class="card calc">
+  <div class="inputs">
+    <h2>Loan at origination</h2>
+    <div id="primary"></div>
+    <details id="advanced-box">
+      <summary>Nine more inputs</summary>
+      <div id="advanced"></div>
+    </details>
+    <button class="reset" id="reset" type="button">Reset to portfolio medians</button>
+  </div>
+  <div class="output">
+    <h2>Output</h2>
+    <div class="pdrow">
+      <output class="pd" id="pd">—</output>
+      <span class="pdcap">PD, 36-month window</span>
+    </div>
+    <p class="pdnote" id="pdnote">90+ days past due, or a credit-event zero-balance code.</p>
+    <span class="band" id="band">—</span>
+    <p class="pctline" id="pctline"></p>
+    <div class="gauge"><div class="fill" id="gaugefill"></div><div class="cut" id="gaugecut"></div></div>
+    <div class="scale"><span>0%</span><span id="cutlabel">cut-off 5.0%</span><span>10%+</span></div>
+    <div class="comp">
+      <h3>What moved the log-odds</h3>
+      <div id="comps"></div>
+      <p class="cfoot" id="logitline"></p>
+    </div>
+  </div>
+</div>
+
+<section>
+  <h2>If this cut-off were the policy</h2>
+  <p>Approval rate and the bad rate among approved loans, measured on the out-of-time cohort of 99,133 loans. This is the same table the model report prints, read at whichever cut-off you pick.</p>
+  <div class="cutoff">
+    <div class="field">
+      <label for="cut">PD cut-off <span class="val" id="cutval">5.0%</span></label>
+      <input type="range" id="cut" min="0.005" max="0.2" step="0.005" value="0.05">
+    </div>
+    <div class="cutrow">
+      <div><div class="k">Approval rate</div><div class="v" id="c-approval">—</div></div>
+      <div><div class="k">Bad rate, approved</div><div class="v" id="c-approved-bad">—</div></div>
+      <div><div class="k">Bad rate, declined</div><div class="v" id="c-rejected-bad">—</div></div>
+      <div><div class="k">Defaults stopped</div><div class="v" id="c-capture">—</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>How the model did</h2>
+  <p>Measured on loans the model never saw. The validation cohort (2019) scores lower than the out-of-time cohort (2020–2021), which is unusual and is one reason the out-of-time set was kept sealed rather than tuned against.</p>
+  <div class="metrics">
+    <div class="metric"><div class="k">Out-of-time AUC</div><div class="v">0.7462</div><div class="n">99,133 loans</div></div>
+    <div class="metric"><div class="k">Gini</div><div class="v">0.4924</div><div class="n">2 × AUC − 1</div></div>
+    <div class="metric"><div class="k">KS</div><div class="v">0.3754</div><div class="n">max |F_bad − F_good|</div></div>
+    <div class="metric"><div class="k">Training loans</div><div class="v">183,668</div><div class="n">2015–2018, 2.64% bad</div></div>
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Model</th><th>Split</th><th>n</th><th>Bad rate</th><th>AUC</th><th>Gini</th><th>KS</th></tr></thead>
+    <tbody>
+      <tr><td>Scorecard</td><td>train</td><td>183,668</td><td>2.64%</td><td>0.7805</td><td>0.5611</td><td>0.4187</td></tr>
+      <tr><td>Scorecard</td><td>valid</td><td>48,321</td><td>5.15%</td><td>0.7050</td><td>0.4100</td><td>0.3025</td></tr>
+      <tr class="hl"><td>Scorecard</td><td>out-of-time</td><td>99,133</td><td>2.02%</td><td>0.7462</td><td>0.4924</td><td>0.3754</td></tr>
+      <tr><td>GBM</td><td>train</td><td>183,668</td><td>2.64%</td><td>0.7993</td><td>0.5985</td><td>0.4514</td></tr>
+      <tr><td>GBM</td><td>valid</td><td>48,321</td><td>5.15%</td><td>0.7040</td><td>0.4080</td><td>0.3021</td></tr>
+      <tr><td>GBM</td><td>out-of-time</td><td>99,133</td><td>2.02%</td><td>0.7381</td><td>0.4762</td><td>0.3542</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Two charts from the same run</h2>
+  <p>Both come out of the pipeline, not out of this page.</p>
+  <div class="figs">
+    <figure class="figure">
+      <img src="figures/16_roc_oot.png" alt="ROC curves for the scorecard and the gradient boosting model on the out-of-time cohort">
+      <figcaption>ROC on the 2020–2021 cohort. The two curves nearly overlap; the scorecard is marginally ahead.</figcaption>
+    </figure>
+    <figure class="figure">
+      <img src="figures/15_auc_by_vintage.png" alt="AUC by origination vintage for the scorecard and the GBM">
+      <figcaption>AUC recomputed vintage by vintage. The 2018–2019 loans are the hardest, which is the COVID window entering their 36-month observation period.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<footer>
+  <p>The probabilities here are low by construction. Predicted PD under-shoots the realised default rate in all ten deciles: the median score across the out-of-time cohort is 0.68% while 2.02% of that cohort actually defaulted. So this score ranks loans, and cannot price one without recalibration. It was trained on US single-family mortgages originated 2015–2018 and will not transfer to another product, country or credit cycle.</p>
+  <p>Built from <a href="https://github.com/prui0474/credit-default-risk">github.com/prui0474/credit-default-risk</a>. Freddie Mac loan-level data, non-commercial use. Not a credit decision system.</p>
+</footer>
+
+</div>
+
+<script>
+const FIELDS = {
+  fico:{label:"FICO score",min:500,max:850,step:1,fmt:v=>v},
+  dti:{label:"Debt-to-income",min:1,max:63,step:1,fmt:v=>v+"%"},
+  ltv:{label:"Loan-to-value",min:5,max:100,step:1,fmt:v=>v+"%"},
+  orig_rate:{label:"Note rate",min:1.5,max:7,step:0.125,fmt:v=>v.toFixed(3)+"%"},
+  cltv:{label:"Combined LTV",min:5,max:110,step:1,fmt:v=>v+"%"},
+  orig_upb:{label:"Loan amount",min:25000,max:900000,step:5000,fmt:v=>"$"+(v/1000).toFixed(0)+"k"},
+  mi_pct:{label:"Mortgage insurance",min:0,max:40,step:1,fmt:v=>v+"%"}
+};
+const PRIMARY = ["fico","dti","ltv","orig_rate"];
+const ADVANCED_NUM = ["cltv","orig_upb","mi_pct"];
+const ADVANCED_CAT = ["term_months","num_borrowers","occupancy","property_type","channel"];
+const TERMS = [120,180,240,300,360];
+
+let model=null, specs={}, values={};
+
+function metric(spec,v){
+  if(spec.type==="numeric"){
+    const e=spec.edges,n=e.length;
+    if(v===null||v===undefined||Number.isNaN(v)) return spec.woe[n-1];
+    for(let i=0;i<n-1;i++){
+      const lo=(e[i]===null)?-Infinity:e[i];
+      const hi=(e[i+1]===null)?Infinity:e[i+1];
+      const hit=(i===0)?(v<=hi):(v>lo&&v<=hi);
+      if(hit) return spec.woe[i];
+    }
+    return spec.woe[n-2];
+  }
+  if(Object.prototype.hasOwnProperty.call(spec.woe,v)) return spec.woe[v];
+  if(Object.prototype.hasOwnProperty.call(spec.woe,"__OTHER__")) return spec.woe["__OTHER__"];
+  return 0.0;
+}
+
+function score(){
+  let logit=model.intercept, comps=[];
+  for(const spec of model.features){
+    const w=metric(spec,values[spec.name]);
+    const c=spec.beta*w;
+    logit+=c;
+    comps.push({name:spec.name,c:c});
+  }
+  const pd=1/(1+Math.exp(-logit));
+  return {pd:pd,logit:logit,comps:comps};
+}
+
+function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
+
+function buildInputs(){
+  const p=document.getElementById("primary");
+  for(const name of PRIMARY){
+    const spec=specs[name], f=FIELDS[name];
+    const wrap=el("div","field");
+    const lab=el("label"); lab.setAttribute("for","in-"+name);
+    lab.appendChild(el("span",null,f.label));
+    const out=el("span","val");
+    lab.appendChild(out); wrap.appendChild(lab);
+    const inp=el("input"); inp.type="range"; inp.id="in-"+name;
+    inp.min=f.min; inp.max=f.max; inp.step=f.step; inp.value=values[name];
+    out.textContent=f.fmt(values[name]);
+    inp.addEventListener("input",()=>{values[name]=parseFloat(inp.value);out.textContent=f.fmt(values[name]);render();});
+    wrap.appendChild(inp); p.appendChild(wrap);
+  }
+  for(const name of ["state","loan_purpose"]){
+    const spec=specs[name];
+    const wrap=el("div","field");
+    const lab=el("label"); lab.setAttribute("for","in-"+name); lab.appendChild(el("span",null,spec.name==="state"?"State":"Loan purpose"));
+    wrap.appendChild(lab);
+    const sel=el("select"); sel.id="in-"+name;
+    for(const lv of spec.levels){const o=el("option",null,lv);o.value=lv;if(lv===values[name])o.selected=true;sel.appendChild(o);}
+    sel.addEventListener("change",()=>{values[name]=sel.value;render();});
+    wrap.appendChild(sel); p.appendChild(wrap);
+  }
+
+  const a=document.getElementById("advanced");
+  for(const name of ADVANCED_NUM){
+    const f=FIELDS[name], spec=specs[name];
+    const wrap=el("div","field");
+    const lab=el("label"); lab.setAttribute("for","in-"+name);
+    lab.appendChild(el("span",null,f.label));
+    const out=el("span","val"); lab.appendChild(out); wrap.appendChild(lab);
+    const inp=el("input"); inp.type="range"; inp.id="in-"+name;
+    inp.min=Math.max(f.min,Math.floor(spec.stats.p01)); inp.max=Math.min(f.max,Math.ceil(spec.stats.p99));
+    inp.step=f.step; inp.value=values[name];
+    out.textContent=f.fmt(values[name]);
+    inp.addEventListener("input",()=>{values[name]=parseFloat(inp.value);out.textContent=f.fmt(values[name]);render();});
+    wrap.appendChild(inp); a.appendChild(wrap);
+  }
+  for(const name of ADVANCED_CAT){
+    const spec=specs[name];
+    const wrap=el("div","field");
+    const lab=el("label"); lab.setAttribute("for","in-"+name);
+    lab.appendChild(el("span",null,name.replace(/_/g," ")));
+    wrap.appendChild(lab);
+    const sel=el("select"); sel.id="in-"+name;
+    const list=(name==="term_months")?TERMS:(name==="num_borrowers")?[1,2,3,4,5]:spec.levels;
+    for(const lv of list){const o=el("option",null,String(lv));o.value=String(lv);if(String(lv)===String(values[name]))o.selected=true;sel.appendChild(o);}
+    sel.addEventListener("change",()=>{values[name]=(name==="term_months"||name==="num_borrowers")?parseFloat(sel.value):sel.value;render();});
+    wrap.appendChild(sel); a.appendChild(wrap);
+  }
+}
+
+function percentile(pd){
+  const q=model.pd_quantiles;
+  let i=0;
+  while(i<q.length && q[i]<=pd) i++;
+  return Math.max(0,Math.min(99,Math.round((i-1)/(q.length-1)*100)));
+}
+
+function render(){
+  const r=score();
+  const cutoff=parseFloat(document.getElementById("cut").value);
+  const pdpct=r.pd*100;
+  const scale=0.10;
+
+  const pdNode=document.getElementById("pd");
+  pdNode.textContent=pdpct.toFixed(2)+"%";
+  pdNode.className="pd "+(r.pd>cutoff?"high":"low");
+
+  const band=document.getElementById("band");
+  if(r.pd<=cutoff){band.textContent="Inside the cut-off";band.className="band pass";}
+  else{band.textContent="Above the cut-off";band.className="band fail";}
+
+  const pct=percentile(r.pd);
+  const plt=document.getElementById("pctline");
+  plt.innerHTML="";
+  plt.appendChild(document.createTextNode("Riskier than "));
+  const strong=el("b",null,pct+"%");
+  plt.appendChild(strong);
+  plt.appendChild(document.createTextNode(" of the 99,133 out-of-time loans."));
+
+  const fill=document.getElementById("gaugefill");
+  fill.style.width=Math.min(100,pdpct/(scale*100)*100)+"%";
+  const cut=document.getElementById("gaugecut");
+  cut.style.left=Math.min(100,cutoff/(scale*100)*100)+"%";
+  document.getElementById("cutlabel").textContent="cut-off "+(cutoff*100).toFixed(1)+"%";
+
+  const comps=r.comps.slice().sort((x,y)=>Math.abs(y.c)-Math.abs(x.c)).slice(0,6);
+  const maxc=Math.max(...comps.map(c=>Math.abs(c.c)),1e-6);
+  const box=document.getElementById("comps");
+  box.innerHTML="";
+  for(const c of comps){
+    const row=el("div","crow");
+    row.appendChild(el("span","name",c.name));
+    const bar=el("div","bar");
+    const span=el("span",c.c>=0?"pos":"neg");
+    span.style.width=Math.max(2,Math.abs(c.c)/maxc*100)+"%";
+    bar.appendChild(span); row.appendChild(bar);
+    row.appendChild(el("span","num",(c.c>=0?"+":"")+c.c.toFixed(2)));
+    box.appendChild(row);
+  }
+  document.getElementById("logitline").textContent=
+    "log-odds "+r.logit.toFixed(3)+" · intercept "+model.intercept.toFixed(3)+
+    " · PD = 1/(1+exp("+(-r.logit).toFixed(3)+")) = "+pdpct.toFixed(2)+"%";
+}
+
+function renderCutoff(){
+  const v=parseFloat(document.getElementById("cut").value);
+  document.getElementById("cutval").textContent=(v*100).toFixed(1)+"%";
+  const curve=model.cutoff_curve;
+  let best=curve[0];
+  for(const row of curve){ if(Math.abs(row.cutoff-v)<Math.abs(best.cutoff-v)) best=row; }
+  document.getElementById("c-approval").textContent=(best.approval*100).toFixed(1)+"%";
+  document.getElementById("c-approved-bad").textContent=(best.approved_bad*100).toFixed(2)+"%";
+  document.getElementById("c-rejected-bad").textContent=(best.rejected_bad*100).toFixed(2)+"%";
+  document.getElementById("c-capture").textContent=(best.bad_capture*100).toFixed(1)+"%";
+  render();
+}
+
+function defaults(){
+  const d={};
+  for(const spec of model.features){
+    if(spec.type==="numeric") d[spec.name]=spec.stats.p50;
+    else if(spec.name==="state") d[spec.name]=(spec.levels.includes("CA")?"CA":spec.levels[0]);
+    else if(spec.name==="loan_purpose") d[spec.name]=(spec.levels.includes("Purchase")?"Purchase":spec.levels[0]);
+    else if(spec.name==="occupancy") d[spec.name]=(spec.levels.includes("Primary Residence")?"Primary Residence":spec.levels[0]);
+    else if(spec.name==="property_type") d[spec.name]=(spec.levels.includes("Single Family")?"Single Family":spec.levels[0]);
+    else if(spec.name==="channel") d[spec.name]=(spec.levels.includes("Retail")?"Retail":spec.levels[0]);
+    else d[spec.name]=spec.levels[0];
+  }
+  d.fico=Math.round(d.fico); d.dti=Math.round(d.dti); d.ltv=Math.round(d.ltv);
+  d.cltv=Math.round(d.cltv); d.orig_upb=Math.round(d.orig_upb/5000)*5000;
+  d.mi_pct=Math.round(d.mi_pct); d.term_months=360; d.num_borrowers=Math.round(d.num_borrowers);
+  d.orig_rate=Math.round(d.orig_rate*8)/8;
+  return d;
+}
+
+fetch("demo/scorecard.json").then(r=>{
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}).then(m=>{
+  model=m;
+  for(const spec of m.features) specs[spec.name]=spec;
+  values=defaults();
+  buildInputs();
+  document.getElementById("cut").addEventListener("input",renderCutoff);
+  document.getElementById("reset").addEventListener("click",()=>{
+    values=defaults();
+    document.querySelectorAll("[id^=in-]").forEach(node=>{
+      const name=node.id.slice(3);
+      if(!(name in values)) return;
+      node.value=values[name];
+      const lab=node.parentElement.querySelector(".val");
+      if(lab&&FIELDS[name]) lab.textContent=FIELDS[name].fmt(values[name]);
+    });
+    render();
+  });
+  renderCutoff();
+}).catch(err=>{
+  document.querySelector(".output").innerHTML=
+    '<div class="err">Could not load <code>demo/scorecard.json</code> ('+err.message+
+    '). Browsers block file reads when a page is opened straight from disk; serve the folder over HTTP instead, for example <code>python -m http.server -d docs 8000</code>.</div>';
+});
+</script>
+</body>
+</html>

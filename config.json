@@ -1,0 +1,54 @@
+{
+  "project": {
+    "name": "credit-default-risk",
+    "seed": 42
+  },
+  "data": {
+    "source": "freddie",
+    "raw_dir": "data/raw",
+    "processed_dir": "data/processed",
+    "demo_dir": "data/demo",
+    "demo_rows_per_vintage": 900,
+    "freddie": {
+      "orig_prefix": "sample_orig_",
+      "perf_prefix": null,
+      "vintage_years": [2015, 2016, 2017, 2018, 2019, 2020, 2021]
+    },
+    "sba": {
+      "files": [],
+      "max_vintage_year": 2020
+    }
+  },
+  "target": {
+    "definition": "ever_90dpd_within_36m",
+    "performance_window_months": 36
+  },
+  "split": {
+    "strategy": "vintage",
+    "train_vintages": [2015, 2016, 2017, 2018],
+    "valid_vintages": [2019],
+    "oot_vintages": [2020, 2021]
+  },
+  "features": {
+    "numeric": ["fico", "dti", "ltv", "cltv", "orig_upb", "orig_rate", "term_months", "num_borrowers", "mi_pct"],
+    "categorical": ["loan_purpose", "occupancy", "property_type", "state", "channel"],
+    "woe_max_bins": 10
+  },
+  "model": {
+    "scorecard": {
+      "C": 1.0,
+      "max_iter": 1000
+    },
+    "gbm": {
+      "max_iter": 400,
+      "learning_rate": 0.04,
+      "max_depth": 4,
+      "l2_regularization": 1.0,
+      "early_stopping": true
+    }
+  },
+  "report": {
+    "figures_dir": "reports/figures",
+    "output": "reports/model_report.md"
+  }
+}
